@@ -9,6 +9,9 @@ import {
 
 type Tab = "Home" | "Drops" | "Signal" | "Impact";
 type Drop = { id: string; author: string; handle: string; time: string; text: string; tag: string; likes: number; liked: boolean; comments: number; };
+type ApiDrop = { id: string; body: string; created_at: string; topic?: string | null; liked?: boolean; profiles?: { display_name?: string | null; handle?: string | null } | null; drop_reactions?: { count: number }[] };
+type ApiMission = { slug: string; completed: boolean };
+type ApiTopic = { slug: string; bullish?: number; bearish?: number; neutral?: number; my_vote?: string | null };
 const seedDrops: Drop[] = [
   { id: "d1", author: "Mira", handle: "@mira.zk", time: "12m", text: "Privacy shouldn't be a premium feature. It should be the default. Building toward a web where identity is yours to reveal — and yours to keep.", tag: "Privacy", likes: 128, liked: false, comments: 18 },
   { id: "d2", author: "0xNorth", handle: "@0xnorth", time: "38m", text: "The best onchain communities won't be the loudest. They'll be the ones that turn conviction into useful action.", tag: "Web3", likes: 84, liked: true, comments: 12 },
@@ -135,7 +138,7 @@ export default function Page() {
         if (cancelled) return;
         if (dropResponse.ok) {
           const payload = await dropResponse.json();
-          const mapped = (payload.drops ?? []).map((d: any) => ({ id: d.id, author: d.profiles?.display_name ?? 'Doxia member', handle: '@' + (d.profiles?.handle ?? 'member'), time: new Date(d.created_at).toLocaleString(), text: d.body, tag: d.topic ?? 'Community', likes: d.drop_reactions?.[0]?.count ?? 0, liked: Boolean(d.liked), comments: 0 }));
+          const mapped = (payload.drops ?? []).map((d: ApiDrop) => ({ id: d.id, author: d.profiles?.display_name ?? 'Doxia member', handle: '@' + (d.profiles?.handle ?? 'member'), time: new Date(d.created_at).toLocaleString(), text: d.body, tag: d.topic ?? 'Community', likes: d.drop_reactions?.[0]?.count ?? 0, liked: Boolean(d.liked), comments: 0 }));
           setDrops(mapped);
         }
         if (profileResponse.ok) {
@@ -143,8 +146,8 @@ export default function Page() {
           if (payload.profile) { setDisplayName(payload.profile.display_name); setHandle('@' + payload.profile.handle); setBio(payload.profile.bio); }
         }
         if (walletResponse.ok) { const payload = await walletResponse.json(); setWalletAddress(payload.wallet?.address ?? null); }
-        if (missionResponse.ok) { const payload = await missionResponse.json(); setCompleted((payload.missions ?? []).filter((m: any) => m.completed).map((m: any) => m.slug)); }
-        if (signalResponse.ok) { const payload = await signalResponse.json(); const topic = (payload.topics ?? []).find((t: any) => t.slug === 'privacy-web-direction'); if (topic) { setSignalCounts({ bullish: Number(topic.bullish ?? 0), bearish: Number(topic.bearish ?? 0), neutral: Number(topic.neutral ?? 0) }); if (topic.my_vote) setVoted(v => ({ ...v, privacy: topic.my_vote === 'bullish' ? 'Bullish' : topic.my_vote === 'bearish' ? 'Bearish' : 'Neutral' })); } }
+        if (missionResponse.ok) { const payload = await missionResponse.json(); setCompleted((payload.missions ?? []).filter((m: ApiMission) => m.completed).map((m: ApiMission) => m.slug)); }
+        if (signalResponse.ok) { const payload = await signalResponse.json(); const topic = (payload.topics ?? []).find((t: ApiTopic) => t.slug === 'privacy-web-direction'); if (topic) { setSignalCounts({ bullish: Number(topic.bullish ?? 0), bearish: Number(topic.bearish ?? 0), neutral: Number(topic.neutral ?? 0) }); if (topic.my_vote) setVoted(v => ({ ...v, privacy: topic.my_vote === 'bullish' ? 'Bullish' : topic.my_vote === 'bearish' ? 'Bearish' : 'Neutral' })); } }
         if (entitlementResponse.ok) { const payload = await entitlementResponse.json(); setIsPro(Boolean(payload.isPro)); }
         if (bookmarkResponse.ok) { const payload = await bookmarkResponse.json(); setSavedDrops(payload.dropIds ?? []); }
       } catch { /* the app remains usable in preview mode if the backend is unavailable */ }
@@ -272,7 +275,7 @@ export default function Page() {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error ?? 'Could not save vote.');
         const summaryResponse = await fetch('/api/signal', { cache: 'no-store' });
-        if (summaryResponse.ok) { const payload = await summaryResponse.json(); const topic = (payload.topics ?? []).find((t: any) => t.slug === 'privacy-web-direction'); if (topic) setSignalCounts({ bullish: Number(topic.bullish ?? 0), bearish: Number(topic.bearish ?? 0), neutral: Number(topic.neutral ?? 0) }); }
+        if (summaryResponse.ok) { const payload = await summaryResponse.json(); const topic = (payload.topics ?? []).find((t: ApiTopic) => t.slug === 'privacy-web-direction'); if (topic) setSignalCounts({ bullish: Number(topic.bullish ?? 0), bearish: Number(topic.bearish ?? 0), neutral: Number(topic.neutral ?? 0) }); }
       } catch (error) { alert(error instanceof Error ? error.message : 'Could not save vote.'); return; }
     }
     setVoted(v => ({ ...v, privacy: choice === 'bullish' ? 'Bullish' : 'Bearish' }));
