@@ -28,7 +28,7 @@ export function TopicCard({ topic, isSignedIn, onVote, compact = false }: { topi
   );
 }
 
-export default function SignalBoard({ topics, isSignedIn, onVote }: { topics: SignalTopic[]; isSignedIn: boolean; onVote: (slug: string, choice: Vote) => void }) {
+export default function SignalBoard({ topics, isSignedIn, onVote, generatedAt }: { topics: SignalTopic[]; isSignedIn: boolean; onVote: (slug: string, choice: Vote) => void; generatedAt: string | null }) {
   const [stats, setStats] = useState<Record<string, number> | null>(null);
   useEffect(() => { apiJson<{ stats: Record<string, number> }>("/api/insights").then(p => setStats(p.stats)).catch(() => setStats(null)); }, [topics]);
   return (
@@ -38,6 +38,7 @@ export default function SignalBoard({ topics, isSignedIn, onVote }: { topics: Si
         <div><strong>{stats.votes_7d}</strong><span>Signal votes (7d)</span></div>
         <div><strong>{stats.drops_7d}</strong><span>Public Drops (7d)</span></div>
       </div>}
+      {generatedAt && <p className="signal-updated">Totals computed from stored votes at {new Date(generatedAt).toLocaleTimeString()}</p>}
       {topics.length === 0 && <div className="empty-state"><Users size={24}/><strong>Signal is loading</strong></div>}
       {topics.map(t => <TopicCard key={t.slug} topic={t} isSignedIn={isSignedIn} onVote={onVote}/>)}
       <div className="signal-prompt methodology">
@@ -48,6 +49,8 @@ export default function SignalBoard({ topics, isSignedIn, onVote }: { topics: Si
           <li>Only totals are published. Nobody, including other members, can see how you voted.</li>
           <li>Confidence uses a 95% Wilson interval: few votes means a wide margin and a “low confidence” label, so small samples can’t pose as consensus.</li>
           <li>The timeline shows the positive share of votes cast up to each day.</li>
+          <li>Accounts that repeatedly hit vote limits are logged privately for review; the log records the limit, not how anyone voted.</li>
+          <li>Signal never includes market prices. Where a project page shows a price, it is labelled with its external source and time.</li>
         </ul>
         <p className="fine-print">Signal reflects community opinion. It is not market data, a prediction, or financial advice.</p>
       </div>

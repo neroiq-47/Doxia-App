@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     if (entitlement?.status !== 'active') return jsonError('Drops over 500 characters require Doxia Pro.', 403);
   }
   if (!visibility) return jsonError('Invalid visibility.');
+  const { data: duplicate } = await supabase.from('drops').select('id').eq('author_id', user.id).eq('body', text).gt('created_at', new Date(Date.now() - 86_400_000).toISOString()).limit(1).maybeSingle();
+  if (duplicate) return jsonError('You already posted this in the last 24 hours. Repeated posts are treated as spam.', 409);
   let project_id: string | null = null;
   if (typeof body.project === 'string' && body.project) {
     const { data: project } = await supabase.from('projects').select('id').eq('slug', body.project).eq('is_active', true).maybeSingle();

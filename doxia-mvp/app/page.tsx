@@ -10,6 +10,7 @@ import SignalBoard from "@/components/SignalBoard";
 import ProjectsView from "@/components/ProjectsView";
 import ReputationPanel from "@/components/ReputationPanel";
 import WalletPicker from "@/components/WalletPicker";
+import DogeWalletPanel from "@/components/DogeWalletPanel";
 import { apiJson, goToLogin, MAIN_SIGNAL_SLUG, mapDrop, share, TOPICS, trendPath, type ApiDrop, type Drop, type SignalTopic, type Visibility, type Vote } from "@/components/types";
 
 type Tab = "Home" | "Drops" | "Signal" | "Projects" | "Impact";
@@ -23,6 +24,8 @@ const MISSION_STYLE: Record<string, { icon: string; tag: string }> = {
   "open-source-builder": { icon: "🌱", tag: "OPEN SOURCE" },
   "privacy-practice": { icon: "🛡️", tag: "PRIVACY" },
   "welcome-a-voice": { icon: "🤝", tag: "COMMUNITY" },
+  "doge-native-vs-wrapped": { icon: "🐕", tag: "$DOGE · LEARN" },
+  "doge-community-resource": { icon: "📚", tag: "$DOGE · COMMUNITY" },
 };
 const LOCAL_SAVED_KEY = "doxia-saved-drops";
 const nav: { label: Tab; icon: typeof Home }[] = [
@@ -66,6 +69,8 @@ export default function Page() {
   const [authLoading, setAuthLoading] = useState(true);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [signalTopics, setSignalTopics] = useState<SignalTopic[]>([]);
+  const [signalGeneratedAt, setSignalGeneratedAt] = useState<string | null>(null);
+  const [dogeWalletEnabled, setDogeWalletEnabled] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [trending, setTrending] = useState<Trend[]>([]);
   const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
@@ -85,6 +90,7 @@ export default function Page() {
       try {
         const health = await fetch('/api/health', { cache: 'no-store' }).then(r => r.json());
         setBackendConfigured(Boolean(health.backendConfigured));
+        setDogeWalletEnabled(Boolean(health.features?.dogeWallet));
         if (!health.backendConfigured) return;
         const { createClient } = await import('@/lib/supabase/browser');
         const supabase = createClient();
@@ -125,7 +131,10 @@ export default function Page() {
 
   useEffect(() => {
     if (authLoading) return;
-    const target = new URLSearchParams(window.location.search).get('drop');
+    const params = new URLSearchParams(window.location.search);
+    const project = params.get('project');
+    if (project && /^[a-z0-9-]{2,40}$/.test(project)) { setSelectedProject(project); setTab('Projects'); }
+    const target = params.get('drop');
     if (!target) return;
     let cancelled = false;
     apiJson<{ drop: ApiDrop }>(`/api/drops/${encodeURIComponent(target)}`).then(payload => {
@@ -203,9 +212,9 @@ export default function Page() {
   async function loadCommunity() {
     try {
       const [signal, missionPayload, trendingPayload] = await Promise.all([
-        apiJson<{ topics: SignalTopic[] }>('/api/signal'), apiJson<{ missions: Mission[] }>('/api/missions'), apiJson<{ topics: Trend[] }>('/api/trending'),
+        apiJson<{ topics: SignalTopic[]; generated_at: string }>('/api/signal'), apiJson<{ missions: Mission[] }>('/api/missions'), apiJson<{ topics: Trend[] }>('/api/trending'),
       ]);
-      setSignalTopics(signal.topics); setMissions(missionPayload.missions); setTrending(trendingPayload.topics);
+      setSignalTopics(signal.topics); setSignalGeneratedAt(signal.generated_at ?? null); setMissions(missionPayload.missions); setTrending(trendingPayload.topics);
     } catch { /* community panels show their empty states */ }
   }
 
@@ -436,7 +445,7 @@ export default function Page() {
             {feedCursor && !feedLoading && <div className="load-more"><button className="text-btn" onClick={() => void loadFeed(false)}>Load more Drops <ChevronDown size={14}/></button></div>}
           </>}
 
-          {tab === "Signal" && <SignalBoard topics={signalTopics} isSignedIn={isSignedIn} onVote={(slug, choice) => void castVote(slug, choice)}/>}
+          {tab === "Signal" && <SignalBoard topics={signalTopics} isSignedIn={isSignedIn} generatedAt={signalGeneratedAt} onVote={(slug, choice) => void castVote(slug, choice)}/>}
 
           {tab === "Projects" && <ProjectsView selected={selectedProject} onSelect={setSelectedProject} isSignedIn={isSignedIn} onVote={(slug, choice) => void castVote(slug, choice)} renderDrop={renderDrop} onPost={slug => openComposer(slug)} refreshKey={refreshKey}/>}
 
@@ -449,7 +458,7 @@ export default function Page() {
             <p className="fine-print">Points and reputation are app progress only; no token, donation or financial reward is issued.</p>
           </div>}
 
-          <footer className="main-footer"><span>© 2026 Doxia</span><span><Shield size={13}/> Privacy by design, still in progress</span><span className="footer-links"><a href="/developers">Developer API</a><button onClick={() => alert("Privacy policy and terms should be added before public beta.")}>Privacy & terms</button></span></footer>
+          <footer className="main-footer"><span>© 2026 Doxia</span><span><Shield size={13}/> Privacy by design, still in progress</span><span className="footer-links"><a href="/guidelines">Guidelines</a><a href="/developers">Developer API</a><button onClick={() => alert("Privacy policy and terms should be added before public beta.")}>Privacy & terms</button></span></footer>
         </div>
       </section>
 
@@ -458,14 +467,14 @@ export default function Page() {
         <div className="right-card signal-card"><div className="right-card-heading"><div><span className="eyebrow">SIGNAL SNAPSHOT</span><h3>Privacy web</h3></div><span className="mini-pulse"><i/></span></div><div className="big-score">{mainTopic?.total ? <>{share(mainTopic.bullish, mainTopic.total)}<span>%</span></> : "—"}</div><div className="score-caption">Positive signal {mainTrend && <span>{mainTrend.delta >= 0 ? "↑" : "↓"} {Math.abs(mainTrend.delta)} pts this week</span>}</div><div className="mini-chart">{mainTrend ? <svg viewBox="0 0 260 60" preserveAspectRatio="none" aria-label="Share of positive votes over the last 7 days"><path d={mainTrend.path} fill="none" stroke="#b7f779" strokeWidth="2.5" strokeLinecap="round"/></svg> : <div className="chart-empty">Trend appears after votes on 2+ days</div>}</div><div className="chart-bottom"><span>7-DAY TREND</span><span>{mainTopic?.total ?? 0} {mainTopic?.total === 1 ? "VOTE" : "VOTES"}</span></div></div>
         <div className="right-card"><div className="right-card-heading"><h3>Trending topics</h3><span className="live-label">7 DAYS</span></div>{trendingList}<button className="see-all" onClick={() => setTab("Signal")}>Explore Signal <ArrowUpRight size={14}/></button></div>
         <div className="right-card mission-teaser"><div className="mission-teaser-icon"><Leaf size={18}/></div><span className="eyebrow">IMPACT</span><h3>Contribution over clout.</h3><p>Earn reputation, badges and streaks for Drops, replies, Signal and missions.</p><button className="text-btn" onClick={() => setTab("Impact")}>See rankings <ArrowUpRight size={14}/></button></div>
-        <div className="right-foot"><a href="/developers">Developers</a><span>Guidelines</span><span>Help</span><p>Identity. Signal. Impact.</p></div>
+        <div className="right-foot"><a href="/developers">Developers</a><a href="/guidelines">Guidelines</a><span>Help</span><p>Identity. Signal. Impact.</p></div>
       </aside>
 
       {selectedDrop && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSelectedDrop(null); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="report-title"><div className="modal-head"><div><span className="eyebrow">COMMUNITY SAFETY</span><h2 id="report-title">{isOwnDrop(selectedDrop) ? "Manage your Drop." : "Report this Drop."}</h2></div><button className="icon-btn" onClick={() => setSelectedDrop(null)} aria-label="Close"><X size={20}/></button></div>{isOwnDrop(selectedDrop) ? <><p className="muted">Manage the Drop you published.</p><button className="primary-btn full-btn" onClick={editSelectedDrop}>Edit Drop</button><button className="danger-btn full-btn" onClick={() => void deleteSelectedDrop()}>Delete Drop permanently</button></> : <><label className="field-label">Reason<select value={reportReason} onChange={e => setReportReason(e.target.value)}><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="impersonation">Impersonation</option><option value="illegal">Illegal content</option><option value="other">Other</option></select></label><label className="field-label">Additional details (optional)<textarea value={reportDetails} maxLength={1000} onChange={e => setReportDetails(e.target.value)} placeholder="Help the moderation team understand the issue." /></label><p className="demo-warning">Reports are reviewed by the Doxia team. Do not use this for emergencies.</p><button className="primary-btn full-btn" onClick={() => void submitReport()}>{isSignedIn ? "Submit report" : "Sign in to report"}</button></>}</section></div>}
 
       {composerOpen && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget) { setComposerOpen(false); setEditingDropId(null); setDraft(""); }}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="compose-title"><div className="modal-head"><div><span className="eyebrow">CREATE SOMETHING</span><h2 id="compose-title">{editingDropId ? "Edit your Drop." : "Drop a thought."}</h2></div><button className="icon-btn" onClick={() => { setComposerOpen(false); setEditingDropId(null); setDraft(""); }} aria-label="Close"><X size={20}/></button></div><div className="compose-author"><div className="avatar avatar-lime">{initial}</div><div><strong>{displayName}</strong><span>{handle} · {editingDropId ? "Editing" : draftVisibility === "public" ? "Public Drop" : "Unlisted Drop"}</span></div></div><textarea autoFocus maxLength={isPro ? 1000 : 500} value={draft} onChange={e => setDraft(e.target.value)} placeholder="What do you want the world to hear?" />{!editingDropId && <div className="compose-options"><label className="field-label">Topic<select value={draftTopic} onChange={e => setDraftTopic(e.target.value)}>{TOPICS.map(t => <option key={t} value={t}>{t}</option>)}</select></label><label className="field-label">Project (optional)<select value={draftProject} onChange={e => setDraftProject(e.target.value)}><option value="">None</option>{projectOptions.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}</select></label><label className="field-label">Who can see it<select value={draftVisibility} onChange={e => setDraftVisibility(e.target.value === "unlisted" ? "unlisted" : "public")}><option value="public">Public — in the feed</option><option value="unlisted">Unlisted — link only</option></select></label></div>}<div className="compose-foot"><span>{draft.length}/{isPro ? 1000 : 500} · Be thoughtful. Be you.</span><button className="primary-btn" disabled={!draft.trim()} onClick={() => void publishDrop()}><Send size={16}/> {editingDropId ? "Save changes" : "Publish Drop"}</button></div><p className="demo-warning">{editingDropId ? "Changes update this Drop for everyone who can see it." : draftVisibility === "public" ? "Public Drops appear in the community feed." : "Unlisted Drops stay out of the feed; anyone with the link can view them."}</p></section></div>}
 
-      {profileOpen && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget) setProfileOpen(false)}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title"><div className="modal-head"><div><span className="eyebrow">YOUR IDENTITY</span><h2 id="profile-title">Make it yours.</h2></div><button className="icon-btn" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={20}/></button></div><label className="field-label">Display name<input value={displayName} maxLength={32} onChange={e => setDisplayName(e.target.value)} /></label><label className="field-label">Handle<input value={handle} maxLength={25} onChange={e => setHandle(e.target.value.startsWith("@") ? e.target.value : "@"+e.target.value)} /></label><label className="field-label">Bio<textarea value={bio} maxLength={160} onChange={e => setBio(e.target.value)} /></label><label className="toggle-row"><span>Show me in contributor rankings and show my reputation and badges on my public profile</span><input type="checkbox" checked={showInRankings} onChange={e => setShowInRankings(e.target.checked)} /></label><div className="privacy-callout"><LockKeyhole size={17}/><span>Your display name, handle, bio and public Drops are public. Your email, wallet address and individual votes stay private.</span></div><div className="account-links"><a className="text-btn" href={`/u/${handle.replace(/^@/, "")}`}>View public profile <ArrowUpRight size={12}/></a><a className="text-btn" href="/api/account/export" download>Download my data <ArrowUpRight size={12}/></a>{walletAddress && <span className="text-btn">Wallet linked: {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)} (private)</span>}</div><button className="primary-btn full-btn" onClick={() => void saveProfile()}><Check size={16}/> Save profile</button><button className="danger-btn full-btn" onClick={() => void deleteAccount()}>Delete account permanently</button></section></div>}
+      {profileOpen && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget) setProfileOpen(false)}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title"><div className="modal-head"><div><span className="eyebrow">YOUR IDENTITY</span><h2 id="profile-title">Make it yours.</h2></div><button className="icon-btn" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={20}/></button></div><label className="field-label">Display name<input value={displayName} maxLength={32} onChange={e => setDisplayName(e.target.value)} /></label><label className="field-label">Handle<input value={handle} maxLength={25} onChange={e => setHandle(e.target.value.startsWith("@") ? e.target.value : "@"+e.target.value)} /></label><label className="field-label">Bio<textarea value={bio} maxLength={160} onChange={e => setBio(e.target.value)} /></label><label className="toggle-row"><span>Show me in contributor rankings and show my reputation and badges on my public profile</span><input type="checkbox" checked={showInRankings} onChange={e => setShowInRankings(e.target.checked)} /></label><div className="privacy-callout"><LockKeyhole size={17}/><span>Your display name, handle, bio and public Drops are public. Your email, wallet address and individual votes stay private.</span></div><div className="account-links"><a className="text-btn" href={`/u/${handle.replace(/^@/, "")}`}>View public profile <ArrowUpRight size={12}/></a><a className="text-btn" href="/api/account/export" download>Download my data <ArrowUpRight size={12}/></a>{walletAddress && <span className="text-btn">Wallet linked: {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)} (private)</span>}</div>{dogeWalletEnabled && <DogeWalletPanel/>}<button className="primary-btn full-btn" onClick={() => void saveProfile()}><Check size={16}/> Save profile</button><button className="danger-btn full-btn" onClick={() => void deleteAccount()}>Delete account permanently</button></section></div>}
 
       {walletOpen && <WalletPicker onClose={() => setWalletOpen(false)} onLinked={address => { setWalletAddress(address); setWalletOpen(false); bumpCommunity(); }}/>}
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, Boxes, Plus } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Boxes, Link2, Plus } from "lucide-react";
+import MarketCard from "./MarketCard";
 import { TopicCard } from "./SignalBoard";
 import { apiJson, mapDrop, share, type ApiDrop, type Drop, type SignalTopic, type Vote } from "./types";
 
@@ -31,7 +32,10 @@ export default function ProjectsView({ selected, onSelect, isSignedIn, onVote, r
     <div className="signal-view">
       <button className="text-btn" onClick={() => onSelect(null)}><ArrowLeft size={14}/> All projects</button>
       <div className="impact-banner"><div><span className="eyebrow">PROJECT{detail.project.symbol ? ` · $${detail.project.symbol}` : ""}</span><h2>{detail.project.name}</h2><p>{detail.project.description}</p>{detail.project.website && <a className="text-btn" href={detail.project.website} target="_blank" rel="noopener noreferrer">Official site <ArrowUpRight size={13}/></a>}</div><div className="impact-art"><Boxes size={46}/></div></div>
+      <button className="text-btn" onClick={() => { const url = `${window.location.origin}/?project=${detail.project.slug}`; void navigator.clipboard?.writeText(url).then(() => alert("Project link copied."), () => alert(url)); }}><Link2 size={13}/> Copy link to this project</button>
+      <p className="section-label">COMMUNITY SENTIMENT · DOXIA MEMBER VOTES</p>
       {detail.signal && <TopicCard topic={detail.signal} isSignedIn={isSignedIn} onVote={onVote}/>}
+      {detail.project.slug === "dogecoin" && <><p className="section-label">MARKET PRICE · NOT SENTIMENT</p><MarketCard/></>}
       <div className="section-row"><div className="section-title"><strong>Drops about {detail.project.name}</strong></div><button className="text-btn" onClick={() => onPost(detail.project.slug)}><Plus size={14}/> Post about {detail.project.name}</button></div>
       <div className="feed-list">{detail.drops.length === 0 ? <div className="empty-state"><strong>No Drops about {detail.project.name} yet</strong><span>Start the conversation.</span></div> : detail.drops.map(d => renderDrop(d, updateDrop))}</div>
     </div>
@@ -47,7 +51,7 @@ export default function ProjectsView({ selected, onSelect, isSignedIn, onVote, r
           <span className="project-signal">{p.signal && p.signal.total ? `${share(p.signal.bullish, p.signal.total)}% positive · ${p.signal.total} ${p.signal.total === 1 ? "vote" : "votes"}` : "No Signal votes yet"} <ArrowUpRight size={13}/></span>
         </button>
       ))}</div>
-      <p className="fine-print">Project pages collect community Drops and Signal. Descriptions are informational; Doxia is not affiliated with these projects.</p>
+      <p className="fine-print">Project pages collect community Drops and Signal. Descriptions are informational; Doxia is not affiliated with these projects. You never need to buy or hold any cryptoasset to take part.</p>
     </div>
   );
 }
