@@ -262,3 +262,69 @@ insert into public.impact_missions (slug, title, description, points) values
 ('privacy-practice', 'Help someone take control', 'Share one practical privacy setting or safety resource with your circle.', 25),
 ('welcome-a-voice', 'Welcome a new voice', 'Make space for a new community member and amplify their first Drop.', 25)
 on conflict (slug) do nothing;
+
+-- Performance: evaluate auth.uid() once per statement in RLS policies (Supabase advisor 0003).
+alter policy "profile owner updates" on public.profiles using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
+alter policy "public and unlisted drops readable" on public.drops using (visibility in ('public', 'unlisted') or author_id = (select auth.uid()));
+alter policy "authors create drops" on public.drops with check (author_id = (select auth.uid()));
+alter policy "authors update drops" on public.drops using (author_id = (select auth.uid())) with check (author_id = (select auth.uid()));
+alter policy "authors delete drops" on public.drops using (author_id = (select auth.uid()));
+alter policy "users add own reactions" on public.drop_reactions with check (user_id = (select auth.uid()));
+alter policy "users remove own reactions" on public.drop_reactions using (user_id = (select auth.uid()));
+alter policy "users read own saved drops" on public.saved_drops using (user_id = (select auth.uid()));
+alter policy "users save own drops" on public.saved_drops with check (user_id = (select auth.uid()));
+alter policy "users unsave own drops" on public.saved_drops using (user_id = (select auth.uid()));
+alter policy "reporter creates report" on public.drop_reports with check (reporter_id = (select auth.uid()));
+alter policy "reporter reads own reports" on public.drop_reports using (reporter_id = (select auth.uid()));
+alter policy "users read own votes" on public.signal_votes using (user_id = (select auth.uid()));
+alter policy "users create own vote" on public.signal_votes with check (user_id = (select auth.uid()));
+alter policy "users update own vote" on public.signal_votes using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+alter policy "users read own completions" on public.mission_completions using (user_id = (select auth.uid()));
+alter policy "users complete own missions" on public.mission_completions with check (user_id = (select auth.uid()));
+alter policy "users reverse own completions" on public.mission_completions using (user_id = (select auth.uid()));
+alter policy "users read own wallet link" on public.wallet_links using (user_id = (select auth.uid()));
+alter policy "users read own entitlement" on public.pro_entitlements using (user_id = (select auth.uid()));
+
+-- Cover foreign keys used by per-user lookups and cascading deletes.
+create index if not exists drop_reactions_user_id_idx on public.drop_reactions (user_id);
+create index if not exists drop_reports_drop_id_idx on public.drop_reports (drop_id);
+create index if not exists mission_completions_user_id_idx on public.mission_completions (user_id);
+create index if not exists saved_drops_user_id_idx on public.saved_drops (user_id);
+create index if not exists signal_votes_user_id_idx on public.signal_votes (user_id);
+create index if not exists wallet_link_challenges_user_id_idx on public.wallet_link_challenges (user_id);
+create index if not exists drops_visibility_created_at_idx on public.drops (visibility, created_at desc);
+
+-- Signal totals are aggregate-only (my_vote is null for anonymous callers), so visitors can see real community numbers.
+grant execute on function public.get_signal_summary(text) to anon;
+
+-- Daily totals of votes cast up to each day. Aggregates only; never exposes individual votes.
+create or replace function public.get_signal_history(p_slug text, p_days integer default 7)
+returns table(day date, bullish bigint, bearish bigint, neutral bigint)
+language sql stable security definer set search_path = '' as $$
+  with topic as (select t.id from public.signal_topics t where t.slug = p_slug and t.is_active = true),
+  days as (
+    select generate_series((now() at time zone 'utc')::date - (least(greatest(p_days, 1), 90) - 1), (now() at time zone 'utc')::date, interval '1 day')::date as day
+  )
+  select d.day,
+    count(v.user_id) filter (where v.choice = 'bullish'),
+    count(v.user_id) filter (where v.choice = 'bearish'),
+    count(v.user_id) filter (where v.choice = 'neutral')
+  from days d
+  left join public.signal_votes v
+    on v.topic_id = (select id from topic) and (v.created_at at time zone 'utc')::date <= d.day
+  group by d.day order by d.day;
+$$;
+revoke all on function public.get_signal_history(text, integer) from public;
+grant execute on function public.get_signal_history(text, integer) to anon, authenticated;
+
+-- Most-used topics among public Drops in a recent window. Runs as the caller, so RLS still applies.
+create or replace function public.get_trending_topics(p_days integer default 7, p_limit integer default 5)
+returns table(topic text, drops bigint)
+language sql stable security invoker set search_path = '' as $$
+  select d.topic, count(*) as drops
+  from public.drops d
+  where d.visibility = 'public' and d.created_at > now() - make_interval(days => least(greatest(p_days, 1), 90))
+  group by d.topic order by count(*) desc, d.topic limit least(greatest(p_limit, 1), 20);
+$$;
+revoke all on function public.get_trending_topics(integer, integer) from public;
+grant execute on function public.get_trending_topics(integer, integer) to anon, authenticated;

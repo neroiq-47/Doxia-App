@@ -15,7 +15,8 @@ export async function GET(request: Request) {
     const { data: ownReactions } = await supabase.from('drop_reactions').select('drop_id').eq('user_id', user.id).in('drop_id', data.map(d => d.id));
     likedIds = new Set((ownReactions ?? []).map(r => r.drop_id));
   }
-  return jsonOk({ drops: (data ?? []).map(d => ({ ...d, liked: likedIds.has(d.id) })) });
+  const nextCursor = data && data.length === limit ? data[data.length - 1].created_at : null;
+  return jsonOk({ drops: (data ?? []).map(d => ({ ...d, liked: likedIds.has(d.id) })), nextCursor });
 }
 
 export async function POST(request: Request) {

@@ -19,7 +19,7 @@ export async function PATCH(request: Request) {
   const bio = typeof body.bio === 'string' && body.bio.length <= 160 ? body.bio : null;
   const handleRaw = safeString(body.handle, 24)?.replace(/^@/, '').toLowerCase();
   if (!display_name || bio === null || !handleRaw || !/^[a-z0-9_][a-z0-9_.]{1,23}$/.test(handleRaw)) return jsonError('Check display name, handle (2–24 letters/numbers/._), and bio (max 160 characters).');
-  const { data, error } = await supabase.from('profiles').upsert({ id: user.id, display_name, bio, handle: handleRaw, updated_at: new Date().toISOString() }, { onConflict: 'id' }).select('id,handle,display_name,bio').single();
+  const { data, error } = await supabase.from('profiles').update({ display_name, bio, handle: handleRaw, updated_at: new Date().toISOString() }).eq('id', user.id).select('id,handle,display_name,bio').single();
   if (error) return jsonError(error.code === '23505' ? 'That handle is already taken.' : 'Could not save profile.', error.code === '23505' ? 409 : 400);
   return jsonOk({ profile: data });
 }

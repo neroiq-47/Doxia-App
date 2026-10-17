@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { requireUser } from '@/lib/auth';
 import { jsonError, jsonOk } from '@/lib/http';
 
-export async function POST(request: Request) {
+export async function POST() {
   const { supabase, user } = await requireUser();
   if (!user) return jsonError('Sign in before purchasing Doxia Pro.', 401);
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRO_PRICE_ID || !process.env.STRIPE_PRO_PRODUCT_ID || !process.env.APP_URL) return jsonError('Checkout is not configured yet.', 503);

@@ -3,10 +3,15 @@ import { isRecord, jsonError, jsonOk, safeString } from '@/lib/http';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const { data, error } = await supabase.from('drops').select('id,author_id,body,topic,visibility,created_at,profiles:profiles!drops_author_id_fkey(handle,display_name),drop_reactions(count)').eq('id', id).maybeSingle();
   if (error || !data) return jsonError('Drop not found.', 404);
-  return jsonOk({ drop: data });
+  let liked = false;
+  if (user) {
+    const { data: reaction } = await supabase.from('drop_reactions').select('drop_id').eq('drop_id', id).eq('user_id', user.id).maybeSingle();
+    liked = Boolean(reaction);
+  }
+  return jsonOk({ drop: { ...data, liked } });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
