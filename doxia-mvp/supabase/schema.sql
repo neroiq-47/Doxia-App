@@ -29,6 +29,8 @@ end;
 $$;
 drop trigger if exists on_auth_user_created_doxia on auth.users;
 create trigger on_auth_user_created_doxia after insert on auth.users for each row execute procedure public.handle_new_user();
+-- Trigger-only function: no API role should call it directly.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 create table if not exists public.drops (
   id uuid primary key default gen_random_uuid(),
@@ -213,7 +215,7 @@ language sql stable security definer set search_path = '' as $$
   from public.signal_topics t left join public.signal_votes v on v.topic_id = t.id
   where t.slug = p_slug and t.is_active = true group by t.id, t.slug, t.question;
 $$;
-revoke all on function public.get_signal_summary(text) from public;
+revoke all on function public.get_signal_summary(text) from public, anon;
 grant execute on function public.get_signal_summary(text) to authenticated;
 
 -- Atomic per-user rate limits for mutation endpoints. Rows are bucketed by time window.
@@ -251,7 +253,7 @@ begin
   return n <= max_requests;
 end;
 $$;
-revoke all on function public.consume_rate_limit(text) from public;
+revoke all on function public.consume_rate_limit(text) from public, anon;
 grant execute on function public.consume_rate_limit(text) to authenticated;
 
 insert into public.signal_topics (slug, question) values ('privacy-web-direction', 'Where is the privacy web heading?') on conflict (slug) do nothing;
