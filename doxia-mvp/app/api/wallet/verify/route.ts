@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { requireUser } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isRecord, jsonError, jsonOk, safeString } from '@/lib/http';
-import { nonceHash, verifyWalletSignature, WALLET_CHAIN_ID } from '@/lib/wallet';
+import { isSupportedChain, nonceHash, verifyWalletSignature } from '@/lib/wallet';
 
 export async function POST(request: Request) {
   const { supabase, user } = await requireUser();
@@ -21,18 +21,20 @@ export async function POST(request: Request) {
   if (!appUrl) return jsonError('APP_URL is not configured.', 503);
   const expectedDomain = new URL(appUrl).host;
   const messageLines = message.split('\n');
-  if (!message.startsWith(`${expectedDomain} wants you to sign in with your Ethereum account:`) || messageLines[1]?.toLowerCase() !== address.toLowerCase() || !message.includes(`Chain ID: ${WALLET_CHAIN_ID}\nNonce: ${nonce}\n`)) return jsonError('Signature message does not match this app, address or testnet.');
+  const chainId = Number(/\nChain ID: (\d+)\nNonce: /.exec(message)?.[1]);
+  if (!isSupportedChain(chainId)) return jsonError('Signature message names an unsupported network.');
+  if (!message.startsWith(`${expectedDomain} wants you to sign in with your Ethereum account:`) || messageLines[1]?.toLowerCase() !== address.toLowerCase() || !message.includes(`Chain ID: ${chainId}\nNonce: ${nonce}\n`)) return jsonError('Signature message does not match this app, address or network.');
   let admin; try { admin = createAdminClient(); } catch { return jsonError('Server wallet-link configuration is missing.', 503); }
   const { data: challenge, error: challengeError } = await admin.from('wallet_link_challenges').select('id,nonce_hash,message_hash,expires_at,consumed_at,address').eq('user_id', user.id).eq('nonce_hash', nonceHash(nonce)).eq('address', address.toLowerCase()).is('consumed_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
   if (challengeError || !challenge) return jsonError('Wallet challenge expired or already used. Request a new one.', 409);
   const messageHash = createHash('sha256').update(message).digest('hex');
   if (messageHash !== challenge.message_hash) return jsonError('Signed message does not match the challenge.', 400);
-  const valid = await verifyWalletSignature(address, message, signature as `0x${string}`);
+  const valid = await verifyWalletSignature(address, message, signature as `0x${string}`, chainId);
   if (!valid) return jsonError('Wallet signature could not be verified.', 401);
   // Consume the challenge with a conditional update to prevent replay. The DB uniqueness constraint prevents one wallet being linked to multiple accounts.
   const { data: consumed, error: consumeError } = await admin.from('wallet_link_challenges').update({ consumed_at: new Date().toISOString() }).eq('id', challenge.id).is('consumed_at', null).select('id').maybeSingle();
   if (consumeError || !consumed) return jsonError('Wallet challenge was already used. Request a new one.', 409);
-  const { error: linkError } = await admin.from('wallet_links').upsert({ user_id: user.id, address: address.toLowerCase(), claimed_chain_id: WALLET_CHAIN_ID, verified_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  const { error: linkError } = await admin.from('wallet_links').upsert({ user_id: user.id, address: address.toLowerCase(), claimed_chain_id: chainId, verified_at: new Date().toISOString() }, { onConflict: 'user_id' });
   if (linkError) return jsonError(linkError.code === '23505' ? 'This wallet is already linked to another account.' : 'Could not save wallet link.', linkError.code === '23505' ? 409 : 400);
-  return jsonOk({ linked: true, address: address.toLowerCase(), chainId: WALLET_CHAIN_ID });
+  return jsonOk({ linked: true, address: address.toLowerCase(), chainId });
 }

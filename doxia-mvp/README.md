@@ -19,7 +19,15 @@ This project extends the initial UI prototype with an initial server-backed impl
 - Atomic per-user rate-limit SQL function for selected mutation endpoints.
 - Basic HTTP security headers and `npm run audit` static completeness check.
 
-## What is not production-certified
+## Roadmap phases implemented (v0.3)
+
+- **Phase 2 — Discovery:** topic feeds, server-side search (Drops, topics, projects, authors; wildcard-safe), Trending sort (Hacker News-style decay: `(likes + 2·replies + 1) / (age_hours + 2)^1.8`), project pages (Bitcoin, Ethereum, Zcash, Robinhood Chain) with project-tagged Drops and per-project Signal, one-level threaded replies (authors and Drop owners can remove), public profile pages at `/u/<handle>`.
+- **Phase 3 — Intelligence:** 30-day sentiment timelines per topic, 95% Wilson confidence intervals with low/medium/high labels, a published anti-manipulation methodology, contribution-based reputation (capped per day, self-likes excluded), streaks, derived badges, a 30-day contributor leaderboard with profile-level opt-out, and community insights.
+- **Phase 4 — Ecosystem:** EIP-6963 multi-wallet discovery, wallet proofs for Robinhood Chain testnet/mainnet, Ethereum and Base, smart-contract wallet signatures (ERC-1271/6492) via each chain's public RPC, a public read-only developer API (`/api/v1/*`, CORS, 60 req/min/IP, docs at `/developers`), embeddable Signal widgets (`/embed/signal/<slug>`), and a personal data export (`/api/account/export`). On-chain features remain deliberately out of scope pending evaluation.
+
+Database changes for these phases are in `supabase/migrations/` (apply after `schema.sql`). Email sign-in templates are in `supabase/email-templates.md`.
+
+
 
 - Dependencies could not be installed in the current build environment because npm registry access failed with `EAI_AGAIN`. I ran a TypeScript syntax transpile check on 29 `.ts`/`.tsx` files and the static audit script; this is **not** a full typecheck or Next.js build.
 - Supabase schema, auth, wallet, Stripe, and webhooks have not been exercised against live/sandbox credentials here.

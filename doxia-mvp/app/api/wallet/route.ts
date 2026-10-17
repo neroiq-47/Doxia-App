@@ -4,7 +4,7 @@ import { jsonError, jsonOk } from '@/lib/http';
 export async function GET() {
   const { supabase, user } = await requireUser();
   if (!user) return jsonError('Sign in required.', 401);
-  const { data, error } = await supabase.from('wallet_links').select('address,chain_id,verified_at').eq('user_id', user.id).maybeSingle();
+  const { data, error } = await supabase.from('wallet_links').select('address,claimed_chain_id,verified_at').eq('user_id', user.id).maybeSingle();
   if (error) return jsonError('Could not load wallet link.', 500);
   return jsonOk({ wallet: data });
 }

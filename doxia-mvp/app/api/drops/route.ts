@@ -1,22 +1,12 @@
 import { requireUser } from '@/lib/auth';
 import { isRecord, jsonError, jsonOk, safeString } from '@/lib/http';
+import { DROP_SELECT, listDrops, parseDropFilters } from '@/lib/data';
 
 export async function GET(request: Request) {
   const { supabase, user } = await requireUser();
-  const url = new URL(request.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 30) || 30, 1), 50);
-  const cursor = url.searchParams.get('before');
-  let query = supabase.from('drops').select('id,author_id,body,topic,visibility,created_at,profiles:profiles!drops_author_id_fkey(handle,display_name),drop_reactions(count)').eq('visibility', 'public').order('created_at', { ascending: false }).limit(limit);
-  if (cursor) query = query.lt('created_at', cursor);
-  const { data, error } = await query;
-  if (error) return jsonError('Could not load Drops.', 500);
-  let likedIds = new Set<string>();
-  if (user && data?.length) {
-    const { data: ownReactions } = await supabase.from('drop_reactions').select('drop_id').eq('user_id', user.id).in('drop_id', data.map(d => d.id));
-    likedIds = new Set((ownReactions ?? []).map(r => r.drop_id));
-  }
-  const nextCursor = data && data.length === limit ? data[data.length - 1].created_at : null;
-  return jsonOk({ drops: (data ?? []).map(d => ({ ...d, liked: likedIds.has(d.id) })), nextCursor });
+  const result = await listDrops(supabase, user?.id ?? null, parseDropFilters(new URL(request.url)));
+  if ('error' in result) return jsonError(result.error ?? 'Could not load Drops.', 500);
+  return jsonOk({ drops: result.drops, nextCursor: result.nextCursor });
 }
 
 export async function POST(request: Request) {
@@ -38,7 +28,13 @@ export async function POST(request: Request) {
     if (entitlement?.status !== 'active') return jsonError('Drops over 500 characters require Doxia Pro.', 403);
   }
   if (!visibility) return jsonError('Invalid visibility.');
-  const { data, error } = await supabase.from('drops').insert({ author_id: user.id, body: text, topic, visibility }).select('id,author_id,body,topic,visibility,created_at').single();
+  let project_id: string | null = null;
+  if (typeof body.project === 'string' && body.project) {
+    const { data: project } = await supabase.from('projects').select('id').eq('slug', body.project).eq('is_active', true).maybeSingle();
+    if (!project) return jsonError('Unknown project.');
+    project_id = project.id;
+  }
+  const { data, error } = await supabase.from('drops').insert({ author_id: user.id, body: text, topic, visibility, project_id }).select(DROP_SELECT).single();
   if (error) return jsonError('Could not publish Drop.', 400);
   return jsonOk({ drop: data }, 201);
 }
