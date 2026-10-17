@@ -13,7 +13,7 @@ const endpoints: [string, string][] = [
   ["GET /api/v1/profiles/{handle}", "Public profile, Drop stats and recent Drops. Reputation and badges only for members who appear in rankings."],
   ["GET /api/v1/leaderboard", "Contribution rankings. Query: days (1–365), limit (1–50). Opted-out members are never listed."],
   ["GET /api/v1/trending-topics", "Most-used Drop topics in the last 7 days."],
-  ["GET /api/v1/challenges", "This week’s three community challenges (picked at random every Sunday 00:00 UTC) and when the week ends."],
+  ["GET /api/v1/challenges", "This week’s five community challenges (picked at random every Sunday 00:00 UTC) and when the week ends."],
   ["GET /api/v1/stats", "Community-wide aggregate counts."],
 ];
 

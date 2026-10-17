@@ -1,4 +1,4 @@
--- Weekly community challenges: a pool of challenges, 3 picked at random every Sunday 00:00 UTC.
+-- Weekly community challenges: a pool of challenges picked at random every Sunday 00:00 UTC (5 per week since migration 15).
 -- Applied to production as migration doxia_13_weekly_challenges.
 alter table public.impact_missions add column if not exists kind text not null default 'core' check (kind in ('core', 'weekly'));
 

@@ -29,7 +29,7 @@ export default function WeeklyChallenges({ weekly, isSignedIn, onComplete }: { w
           <button className={c.completed ? "mission-done" : "mission-cta"} disabled={c.completed} onClick={() => onComplete(c.slug)}>{c.completed ? <><Check size={16}/> Done</> : isSignedIn ? "Mark done" : "Sign in"}</button>
         </article>
       ))}</div>
-      <p className="fine-print">Three challenges are drawn at random from the community pool every Sunday at 00:00 UTC, never repeating last week&apos;s. Each week&apos;s challenges can only be completed that week.</p>
+      <p className="fine-print">Five challenges are drawn at random from the community pool every Sunday at 00:00 UTC, never repeating last week&apos;s. Each week&apos;s challenges can only be completed that week.</p>
     </div>
   );
 }
