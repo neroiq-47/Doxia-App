@@ -11,6 +11,7 @@ import ProjectsView from "@/components/ProjectsView";
 import ReputationPanel from "@/components/ReputationPanel";
 import WalletPicker from "@/components/WalletPicker";
 import DogeWalletPanel from "@/components/DogeWalletPanel";
+import WeeklyChallenges, { type Weekly } from "@/components/WeeklyChallenges";
 import { apiJson, goToLogin, MAIN_SIGNAL_SLUG, mapDrop, share, TOPICS, trendPath, type ApiDrop, type Drop, type SignalTopic, type Visibility, type Vote } from "@/components/types";
 
 type Tab = "Home" | "Drops" | "Signal" | "Projects" | "Impact";
@@ -72,6 +73,7 @@ export default function Page() {
   const [signalGeneratedAt, setSignalGeneratedAt] = useState<string | null>(null);
   const [dogeWalletEnabled, setDogeWalletEnabled] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [weekly, setWeekly] = useState<Weekly | null>(null);
   const [trending, setTrending] = useState<Trend[]>([]);
   const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -212,9 +214,9 @@ export default function Page() {
   async function loadCommunity() {
     try {
       const [signal, missionPayload, trendingPayload] = await Promise.all([
-        apiJson<{ topics: SignalTopic[]; generated_at: string }>('/api/signal'), apiJson<{ missions: Mission[] }>('/api/missions'), apiJson<{ topics: Trend[] }>('/api/trending'),
+        apiJson<{ topics: SignalTopic[]; generated_at: string }>('/api/signal'), apiJson<{ missions: Mission[]; weekly: Weekly | null }>('/api/missions'), apiJson<{ topics: Trend[] }>('/api/trending'),
       ]);
-      setSignalTopics(signal.topics); setSignalGeneratedAt(signal.generated_at ?? null); setMissions(missionPayload.missions); setTrending(trendingPayload.topics);
+      setSignalTopics(signal.topics); setSignalGeneratedAt(signal.generated_at ?? null); setMissions(missionPayload.missions); setWeekly(missionPayload.weekly); setTrending(trendingPayload.topics);
     } catch { /* community panels show their empty states */ }
   }
 
@@ -328,10 +330,11 @@ export default function Page() {
 
   async function completeMission(slug: string) {
     if (!isSignedIn) { goToLogin(); return; }
-    if (missions.some(m => m.slug === slug && m.completed)) return;
+    if (missions.some(m => m.slug === slug && m.completed) || weekly?.challenges.some(c => c.slug === slug && c.completed)) return;
     try {
       await apiJson(`/api/missions/${slug}/complete`, { method: 'POST' });
-      setMissions(ms => ms.map(m => m.slug === slug ? { ...m, completed: true } : m)); bumpCommunity();
+      setMissions(ms => ms.map(m => m.slug === slug ? { ...m, completed: true } : m));
+      setWeekly(w => w && { ...w, challenges: w.challenges.map(c => c.slug === slug ? { ...c, completed: true } : c) }); bumpCommunity();
     } catch (error) { alert(error instanceof Error ? error.message : 'Could not update mission.'); }
   }
 
@@ -451,6 +454,7 @@ export default function Page() {
 
           {tab === "Impact" && <div className="impact-view">
             <ReputationPanel isSignedIn={isSignedIn} refreshKey={refreshKey} showInRankings={showInRankings}/>
+            <WeeklyChallenges weekly={weekly} isSignedIn={isSignedIn} onComplete={slug => void completeMission(slug)}/>
             <div className="impact-banner"><div><span className="eyebrow">THE IMPACT BOARD</span><h2>Turn conviction into action.</h2><p>Choose a mission. Make a little progress. Bring others along.</p></div><div className="impact-art"><Target size={54}/></div></div>
             <div className="impact-stats"><div><strong>{completedMissions.length}</strong><span>Missions completed</span></div><div><strong>{completedMissions.reduce((sum, m) => sum + m.points, 0)}</strong><span>Mission points</span></div><div><strong>{missions.length - completedMissions.length}</strong><span>Open missions</span></div></div>
             <div className="section-row"><div className="section-title"><Leaf size={17}/><strong>Community missions</strong></div><span className="muted small">{isSignedIn ? "SAVED TO YOUR ACCOUNT" : "SIGN IN TO TRACK"}</span></div>
