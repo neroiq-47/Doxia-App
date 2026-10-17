@@ -9,7 +9,8 @@ type Params = { params: Promise<{ handle: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
-  return { title: `@${handle} on Doxia`, description: `Drops and contributions from @${handle} on Doxia.` };
+  // Privacy by default: profiles are shareable by link but not offered to search engines.
+  return { title: `@${handle} on Doxia`, description: `Drops and contributions from @${handle} on Doxia.`, robots: { index: false, follow: false } };
 }
 
 export default async function ProfilePage({ params }: Params) {
